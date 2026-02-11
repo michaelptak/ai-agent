@@ -24,42 +24,49 @@ def main():
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
 
     # Generate the response
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt
+    for _ in range(10):
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=messages,
+            config=types.GenerateContentConfig(
+                tools=[available_functions], system_instruction=system_prompt
+            )
         )
-    )
-    if not response.usage_metadata:
-        raise RuntimeError("The API request failed.")
 
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+        if response.candidates:
+            for candidate in response.candidates:
+                messages.append(candidate.content)
 
-    if not response.function_calls:
-        print("Response:")
-        print(response.text)
-        return
+        if not response.usage_metadata:
+            raise RuntimeError("The API request failed.")
 
-    function_results = []
-    for function_call in response.function_calls:
-        function_call_result = call_function(function_call)
-        if not function_call_result:
-            raise Exception
-        if function_call_result.parts[0].function_response is None:
-            raise Exception
-        if function_call_result.parts[0].function_response.response is None:
-            raise Exception
-        function_results.append(function_call_result.parts[0])
         if args.verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
+            print(f"User prompt: {args.user_prompt}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
 
+        if not response.function_calls:
+            print("Response:")
+            print(response.text)
+            return
 
+        function_results = []
+        for function_call in response.function_calls:
+            function_call_result = call_function(function_call)
+            if not function_call_result:
+                raise Exception
+            if function_call_result.parts[0].function_response is None:
+                raise Exception
+            if function_call_result.parts[0].function_response.response is None:
+                raise Exception
+            function_results.append(function_call_result.parts[0])
+            if args.verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
 
+        messages.append(types.Content(role="user", parts=function_results))
 
+    print(f"The max number of iterations for the loop was reached.")
+    exit(1)
 
 if __name__ == "__main__":
     main()
